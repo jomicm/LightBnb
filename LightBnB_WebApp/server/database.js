@@ -58,16 +58,10 @@ const addUser = async  user => {
   const values = [user.name, user.email, user.password];
   try {
     const inserted = await pool.query(queryString, values);
-    console.log('inserted', inserted);
-    // let found = users.rows.filter(u => u.id === id);
     return inserted;
   } catch (err) {
     console.error('query error', err.stack);
   }
-  // const userId = Object.keys(users).length + 1;
-  // user.id = userId;
-  // users[userId] = user;
-  // return Promise.resolve(user);
 };
 exports.addUser = addUser;
 
@@ -78,9 +72,27 @@ exports.addUser = addUser;
  * @param {string} guest_id The id of the user.
  * @return {Promise<[{}]>} A promise to the reservations.
  */
-const getAllReservations = function(guest_id, limit = 10) {
-  return getAllProperties(null, 2);
-}
+const getAllReservations = async (guestId, limit = 10) => {
+  console.log('limit', limit);
+  const queryString = `SELECT p.id, p.title, p.cost_per_night, r.start_date, r.guest_id, p.thumbnail_photo_url, AVG(pr.rating) average_rating
+                          FROM properties p
+                          JOIN reservations r
+                          ON p.id=r.property_id
+                          JOIN property_reviews pr
+                          ON 	pr.property_id=p.id
+                          WHERE r.end_date < now()::date AND r.guest_id=$1
+                          GROUP BY p.id, r.start_date, r.guest_id, r.end_date
+                          ORDER BY r.start_date
+                          LIMIT $2;`;
+  // return getAllProperties(null, 2);
+  const values = [guestId, limit];
+  try {
+    const reservations = await pool.query(queryString, values);
+    return reservations.rows;
+  } catch (err) {
+    console.error('query error', err.stack);
+  }
+};
 exports.getAllReservations = getAllReservations;
 
 /// Properties
