@@ -28,8 +28,8 @@ module.exports = function(router, database) {
     .then(user => {
       console.log('FROM ROUUTE user', user);
       console.log(password, user.password);
-      // if (bcrypt.compareSync(password, user.password)) {
-      if (password === user.password) {
+      if (bcrypt.compareSync(password, user.password)) {
+      // if (password === user.password) {
         console.log('PAssed!');
         return user;
       }
