@@ -1,8 +1,10 @@
+let currentUser = null;
+let showMakeReservationButton = true;
 $(() => {
   window.header = {};
 
   const $pageHeader = $('#page-header');
-  let currentUser = null;
+  
   function updateHeader(user) {
     currentUser = user;
     $pageHeader.find("#page-header__user-links").remove();
@@ -46,6 +48,7 @@ $(() => {
   });
 
   $("header").on("click", '.my_reservations_button', function() {
+    showMakeReservationButton = false;
     propertyListings.clearListings();
     getAllReservations()
       .then(function(json) {
@@ -55,6 +58,7 @@ $(() => {
       .catch(error => console.error(error));
   });
   $("header").on("click", '.my_listing_button', function() {
+    showMakeReservationButton = false;
     propertyListings.clearListings();
     getAllListings(`owner_id=${currentUser.id}`)
       .then(function(json) {
@@ -64,6 +68,7 @@ $(() => {
   });
 
   $("header").on("click", '.home', function() {
+    showMakeReservationButton = true;
     propertyListings.clearListings();
     getAllListings()
       .then(function(json) {
@@ -73,6 +78,7 @@ $(() => {
   });
 
   $('header').on('click', '.search_button', function() {
+    showMakeReservationButton = true;
     views_manager.show('searchProperty');
   });
 
@@ -87,7 +93,6 @@ $(() => {
       header.update(null);
     });
   });
-
   $('header').on('click', '.create_listing_button', function() {
     views_manager.show('newProperty');
   });

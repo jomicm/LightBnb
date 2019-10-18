@@ -1,3 +1,4 @@
+/* eslint-disable func-style */
 function getMyDetails() {
   console.log("getMyDetails");
   return $.ajax({
@@ -19,6 +20,18 @@ function logIn(data) {
     data
   });
 }
+
+function book(data) {
+  data = JSON.stringify(data);
+  console.log('BOOK FROM AJAX', data);
+  return $.ajax({
+    method: "POST",
+    url: "/users/reserve",
+    dataType: 'json',
+    contentType: 'application/json',
+    data
+  });
+};
 
 function signUp(data) {
   return $.ajax({

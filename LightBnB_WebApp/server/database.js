@@ -1,13 +1,13 @@
-const { Pool } = require('pg');
-const properties = require('./json/properties.json');
-const users = require('./json/users.json');
-const pool = new Pool({
-  user: 'miguelcruz',
-  password: '123',
-  host: 'localhost',
-  database: 'lightbnb'
-});
-
+// const { db } = require('pg');
+// const properties = require('./json/properties.json');
+// const users = require('./json/users.json');
+// const db = new db({
+//   user: 'miguelcruz',
+//   password: '123',
+//   host: 'localhost',
+//   database: 'lightbnb'
+// });
+const db = require('./db');
 /// Users
 
 /**
@@ -19,7 +19,7 @@ const getUserWithEmail = async email => {
   const queryString = `SELECT * FROM users WHERE email=$1;`;
   const values = [email];
   try {
-    const users = await pool.query(queryString, values);
+    const users = await db.query(queryString, values);
     let found = users.rows.filter(u => u.email === email);
     return found[0];
   } catch (err) {
@@ -37,7 +37,7 @@ const getUserWithId = async id => {
   const queryString = `SELECT * FROM users WHERE id=$1;`;
   const values = [id];
   try {
-    const users = await pool.query(queryString, values);
+    const users = await db.query(queryString, values);
     let found = users.rows.filter(u => u.id === id);
     return found[0];
   } catch (err) {
@@ -57,7 +57,7 @@ const addUser = async  user => {
     VALUES ($1, $2, $3) RETURNING *;`;
   const values = [user.name, user.email, user.password];
   try {
-    const inserted = await pool.query(queryString, values);
+    const inserted = await db.query(queryString, values);
     return inserted;
   } catch (err) {
     console.error('query error', err.stack);
@@ -73,26 +73,42 @@ exports.addUser = addUser;
  * @return {Promise<[{}]>} A promise to the reservations.
  */
 const getAllReservations = async(guestId, limit = 10) => {
+  console.log('RESERVATIONS>>>', guestId);
   const queryString = `SELECT p.id, p.title, p.cost_per_night, r.start_date, r.guest_id, p.thumbnail_photo_url, AVG(pr.rating) average_rating
                           FROM properties p
                           JOIN reservations r
                           ON p.id=r.property_id
-                          JOIN property_reviews pr
+                          LEFT JOIN property_reviews pr
                           ON 	pr.property_id=p.id
-                          WHERE r.end_date < now()::date AND r.guest_id=$1
+                          WHERE r.end_date >= now()::date AND r.guest_id=$1
                           GROUP BY p.id, r.start_date, r.guest_id, r.end_date
                           ORDER BY r.start_date
                           LIMIT $2;`;
   // return getAllProperties(null, 2);
   const values = [guestId, limit];
   try {
-    const reservations = await pool.query(queryString, values);
+    const reservations = await db.query(queryString, values);
+    console.log('reservations', reservations.rows);
     return reservations.rows;
   } catch (err) {
     console.error('query error', err.stack);
   }
 };
 exports.getAllReservations = getAllReservations;
+
+const addReservation = async (propertyId, startDate, endDate, userId) => {
+  console.log('Now from database!!!', propertyId, startDate, endDate, userId);
+  const queryString = `INSERT INTO reservations (start_date, end_date, property_id, guest_id) 
+    VALUES ($1, $2, $3, $4) RETURNING *;`;
+  const values = [startDate, endDate, propertyId, userId];
+  try {
+    const newReservastion = await db.query(queryString, values);
+    return newReservastion.rows[0];
+  } catch (err) {
+    console.error('query error', err.stack);
+  }
+};
+exports.addReservation = addReservation;
 
 /// Properties
 
@@ -102,31 +118,34 @@ exports.getAllReservations = getAllReservations;
  * @param {*} limit The number of results to return.
  * @return {Promise<[{}]>}  A promise to the properties.
  */
-const getAllProperties = async (options, limit = 10) => {
-  console.log('limit', limit);
-  const queryParams = [];
-  // const queryString = `SELECT * FROM properties LIMIT $1;`;
-
+const getAllProperties = async(options, limit = 10) => {
+  let queryParams = [];
+  // const possibleFields  = {city:options.city, owner_id:options.owner_id, minimum_price_per_night:options.minimum_price_per_night, maximum_price_per_night:options.maximum_price_per_night};
+  // const possibleComparison = {city:'LIKE', owner_id:'=', minimum_price_per_night:'<=', maximum_price_per_night:'>='};
   let queryString = `SELECT p.*, AVG(pr.rating) average_rating
                           FROM properties p
                           LEFT JOIN property_reviews pr
                           ON pr.property_id=p.id
                           `;
+  // Object.keys(possibleFields).map(fieldKey => {
+  //   [queryString, queryParams] = buildPropQuery(queryString, fieldKey, possibleFields[fieldKey], queryParams, possibleComparison[fieldKey]);
+  // });
   if (options.city) {
     queryParams.push(`%${options.city}%`);
     queryString += `WHERE p.city LIKE $${queryParams.length}`;
   }
+  console.log('queryParams', queryParams);
   if (options.owner_id) {
     queryParams.push(`${options.owner_id}`);
-    queryString += ` AND p.owner_id = $${queryParams.length}`;
+    queryString += ` ${queryParams.length ? 'WHERE' : 'AND'} p.owner_id = $${queryParams.length}`;
   }
   if (options.minimum_price_per_night) {
     queryParams.push(`${options.minimum_price_per_night}`);
-    queryString += ` AND p.cost_per_night >= $${queryParams.length}*100`;
+    queryString += ` ${!queryParams.length ? 'WHERE' : 'AND'} p.cost_per_night >= $${queryParams.length}*100`;
   }
   if (options.maximum_price_per_night) {
     queryParams.push(`${options.maximum_price_per_night}`);
-    queryString += ` AND p.cost_per_night <= $${queryParams.length}*100`;
+    queryString += ` ${!queryParams.length ? 'WHERE' : 'AND'} p.cost_per_night <= $${queryParams.length}*100`;
   }
   queryString += ` GROUP BY p.id`;
   if (options.minimum_rating) {
@@ -136,23 +155,27 @@ const getAllProperties = async (options, limit = 10) => {
   queryParams.push(limit);
   queryString += ` ORDER BY p.cost_per_night
                     LIMIT $${queryParams.length};`;
-  console.log(queryString, queryParams);
-
   try {
     const limitedProperties = {};
-    const properties = await pool.query(queryString, queryParams);
+    const properties = await db.query(queryString, queryParams);
+    console.log('queryString, queryParams', queryString, queryParams);
     properties.rows.map((p, ix) => limitedProperties[ix] = p);
-    // for (let i = 1; i <= limit; i++) {
-    //   limitedProperties[i] = properties.rows[i];
-    // }
     return limitedProperties;
-    // return Promise.resolve(limitedProperties);
   } catch (err) {
     console.error('query error', err.stack);
   }
 };
 exports.getAllProperties = getAllProperties;
 
+const buildPropQuery = (queryString, fieldKey, fieldValue, queryParams, comparison) => {
+  console.log('queryParams', queryParams.length);
+  if (fieldValue) {
+    queryParams.push(comparison !== 'LIKE' ? fieldValue : '%' + fieldValue + '%');
+    queryString += ` ${!queryParams.length ? 'WHERE' : 'AND'} p.${fieldKey} ${comparison} $${queryParams.length} `;
+    console.log('queryString', queryString);
+  }
+  return [queryString, queryParams];
+};
 
 
 /**
@@ -165,7 +188,7 @@ const addProperty = async property => {
   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *;`;
   const values = [property.owner_id,property.title,property.description,property.thumbnail_photo_url,property.cover_photo_url,property.cost_per_night,property.street,property.city,property.province,property.post_code,property.country,property.parking_spaces,property.number_of_bathrooms,property.number_of_bedrooms];
   try {
-    const inserted = await pool.query(queryString, values);
+    const inserted = await db.query(queryString, values);
     console.log('PROPERTY inserted', inserted);
     return inserted;
   } catch (err) {

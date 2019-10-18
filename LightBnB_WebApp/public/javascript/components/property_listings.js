@@ -2,8 +2,8 @@ $(() => {
 
   const $propertyListings = $(`
   <section class="property-listings" id="property-listings">
-      <p>Loading...</p>
-    </section>
+    <p>Loading...</p>
+  </section>
   `);
   window.$propertyListings = $propertyListings;
 

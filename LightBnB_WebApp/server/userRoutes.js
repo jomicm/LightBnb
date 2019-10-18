@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const db = require('./db');
 
 module.exports = function(router, database) {
 
@@ -26,10 +27,7 @@ module.exports = function(router, database) {
   const login =  function(email, password) {
     return database.getUserWithEmail(email)
     .then(user => {
-      console.log('FROM ROUUTE user', user);
-      console.log(password, user.password);
       if (bcrypt.compareSync(password, user.password)) {
-      // if (password === user.password) {
         console.log('PAssed!');
         return user;
       }
@@ -38,6 +36,13 @@ module.exports = function(router, database) {
     });
   }
   exports.login = login;
+
+  const addReservation = (propertyId, startDate, endDate, userId) => {
+    return database.addReservation(propertyId, startDate, endDate, userId)
+      .then(reserve => reserve)
+      .catch(err => 'An error happened' +  err);
+  };
+  
 
   router.post('/login', (req, res) => {
     const {email, password} = req.body;
@@ -57,6 +62,19 @@ module.exports = function(router, database) {
     req.session.userId = null;
     res.send({});
   });
+
+  router.post('/reserve', (req, res) => {
+    console.log('FROM /reserve route!', req.body);
+    const {propertyId, startDate, endDate, userId} = req.body;
+    addReservation(propertyId, startDate, endDate, userId)
+      .then(book => res.send(book))
+      .catch(e => res.send(e));
+  });
+
+  // router.post('/reserve', (req, res) => {
+  //   req.session.userId = null;
+  //   res.send({});
+  // });
 
   router.get("/me", (req, res) => {
     const userId = req.session.userId;
